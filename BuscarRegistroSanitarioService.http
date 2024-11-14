@@ -1,0 +1,6 @@
+@xmlsigner_HostAddress = http://localhost:5078
+
+GET {{xmlsigner_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
