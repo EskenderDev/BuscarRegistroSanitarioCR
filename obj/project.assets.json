@@ -2235,24 +2235,26 @@
     ]
   },
   "packageFolders": {
-    "/home/alejandro/.nuget/packages/": {}
+    "C:\\Users\\Alejandro\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/alejandro/Proyectos/BuscarRegistroSanitarioService/BuscarRegistroSanitarioService.csproj",
+      "projectUniqueName": "E:\\Proyectos\\BuscarRegistroSanitarioCR\\BuscarRegistroSanitarioService.csproj",
       "projectName": "BuscarRegistroSanitarioService",
-      "projectPath": "/home/alejandro/Proyectos/BuscarRegistroSanitarioService/BuscarRegistroSanitarioService.csproj",
-      "packagesPath": "/home/alejandro/.nuget/packages/",
-      "outputPath": "/home/alejandro/Proyectos/BuscarRegistroSanitarioService/obj/",
+      "projectPath": "E:\\Proyectos\\BuscarRegistroSanitarioCR\\BuscarRegistroSanitarioService.csproj",
+      "packagesPath": "C:\\Users\\Alejandro\\.nuget\\packages\\",
+      "outputPath": "E:\\Proyectos\\BuscarRegistroSanitarioCR\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/home/alejandro/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\Alejandro\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
       ],
       "sources": {
+        "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -2265,6 +2267,11 @@
         "warnAsError": [
           "NU1605"
         ]
+      },
+      "restoreAuditProperties": {
+        "enableAudit": "true",
+        "auditLevel": "low",
+        "auditMode": "direct"
       }
     },
     "frameworks": {
@@ -2320,7 +2327,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/8.0.110/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.204/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

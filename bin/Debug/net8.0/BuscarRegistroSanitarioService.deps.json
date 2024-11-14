@@ -421,12 +421,6 @@
           }
         },
         "runtimeTargets": {
-          "runtimes/win/lib/net8.0/System.Diagnostics.EventLog.Messages.dll": {
-            "rid": "win",
-            "assetType": "runtime",
-            "assemblyVersion": "8.0.0.0",
-            "fileVersion": "8.0.1024.46610"
-          },
           "runtimes/win/lib/net8.0/System.Diagnostics.EventLog.dll": {
             "rid": "win",
             "assetType": "runtime",
@@ -435,7 +429,14 @@
           }
         }
       },
-      "System.Text.Json/8.0.5": {}
+      "System.Text.Json/8.0.5": {
+        "runtime": {
+          "lib/net8.0/System.Text.Json.dll": {
+            "assemblyVersion": "8.0.0.0",
+            "fileVersion": "8.0.1024.46610"
+          }
+        }
+      }
     }
   },
   "libraries": {

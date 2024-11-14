@@ -14,6 +14,7 @@ namespace BuscarRegistroSanitarioService.services
         private static IWebDriver? driver;
         private List<(string Origin, string ResponseUrl, string ResponseBody)> respuestas = new List<(string, string, string)>();
         private HttpRequestMessage? interceptedRequest = null;
+        private HttpResponseMessage? interceptedResponse = null;
         private INetwork? networkInterceptor;
         private WebDriverWait wait;
         private readonly object lockObj = new object();
@@ -26,12 +27,14 @@ namespace BuscarRegistroSanitarioService.services
                     if (driver == null)
                     {
                         var chromeOptions = new ChromeOptions();
+                        //chromeOptions.AddArgument("--headless");
                         chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");//"--headless");
+
                         driver = new ChromeDriver(chromeOptions);
                         driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
-                        
+
                         networkInterceptor = driver?.Manage().Network;
-                        networkInterceptor?.AddRequestHandler(networkRequestHandler());
+                        networkInterceptor?.AddResponseHandler(networkResponseHandler());
 
                         wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
                         iniciarCampos();
@@ -41,55 +44,62 @@ namespace BuscarRegistroSanitarioService.services
             }
         }
 
-        private NetworkRequestHandler networkRequestHandler() {
-            return new NetworkRequestHandler
+        private NetworkResponseHandler networkResponseHandler()
+        {
+            int count = 0;
+            return new NetworkResponseHandler()
+            {
+                ResponseMatcher = response => response.StatusCode == 200 && response.Url.Contains("https://gateway.registrelo.go.cr/reports/v1/publicreports/getPublicReport?reportDefinitionCode"),
+                ResponseTransformer = response =>
+                {
+                    Console.WriteLine(count++);
+                    if (interceptedRequest?.RequestUri.ToString() == response.Url)
+                    {
+                        interceptedResponse = new HttpResponseMessage((System.Net.HttpStatusCode)response.StatusCode);
+                        foreach (var header in response.Headers)
                         {
-                            RequestMatcher = request => request.Url.Contains("/reports/v1/publicreports/getPublicReport") && request.Headers.ContainsKey("api-token") && request.Method == HttpMethod.Get.Method,
-
-                            RequestTransformer = request =>
-                            {                       
-                                //request.Url = request.Url.Replace("skip=0", $"skip={skip}");
-                                interceptedRequest = new HttpRequestMessage(HttpMethod.Get, request.Url);
-                                foreach (var header in request.Headers)
-                                {
-                                    interceptedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                                }
-                                return request;
-                            }
-                        };
+                            interceptedResponse.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                            interceptedResponse.Content = new StringContent(response.Content.ReadAsString());
+                        }
+                    }
+                    return response;
+                }
+            };
 
         }
-        private void iniciarCampos(){
-                wait.Until(driver => ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").ToString() == "complete");
-                var advanceSearch = WaitForElementToBeVisible(By.ClassName("advance-search"));
-                wait.Until(d => advanceSearch.Displayed);
-                advanceSearch.Click();
+        private void iniciarCampos()
+        {
+            wait.Until(driver => ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").ToString() == "complete");
+            var advanceSearch = WaitForElementToBeVisible(By.ClassName("advance-search"));
+            wait.Until(d => advanceSearch.Displayed);
+            advanceSearch.Click();
 
-                if (driver.FindElements(By.ClassName("times-icon")).Count > 0)
-                {
-                    var fechas = wait.Until(d => d.FindElements(By.ClassName("times-icon")));
-                    wait.Until(d => fechas.First().Displayed);
-                    fechas.First().Click();
-                    fechas.Last().Click();
+            if (driver.FindElements(By.ClassName("times-icon")).Count > 0)
+            {
+                var fechas = wait.Until(d => d.FindElements(By.ClassName("times-icon")));
+                wait.Until(d => fechas.First().Displayed);
+                fechas.First().Click();
+                fechas.Last().Click();
 
-                }
+            }
 
-                var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
-                var estado = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(12) > div:nth-child(2) > div > div:nth-child(1) > input")));
+            var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+            var estado = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(12) > div:nth-child(2) > div > div:nth-child(1) > input")));
 
-                 
-                tipo.Click();
-                var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-item-6")));
-                listaTipo.Click();
-                estado.Click();
-                var listaEstado = wait.Until(d => d.FindElement(By.Id("downshift-3-item-0")));
-                listaEstado.Click();
 
-                
+            tipo.Click();
+            var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-item-6")));
+            listaTipo.Click();
+            estado.Click();
+            var listaEstado = wait.Until(d => d.FindElement(By.Id("downshift-3-item-0")));
+            listaEstado.Click();
+
+
         }
         public async Task<ApiResponse> BuscarRegistroSanitario(string? nombreProducto, int? skip = 0)
         {
-
+            interceptedResponse = null;
+            respuestas.Clear();
             ApiResponse? payload = new ApiResponse();
 
             try
@@ -107,15 +117,24 @@ namespace BuscarRegistroSanitarioService.services
 
                 var maxWaitTime = TimeSpan.FromSeconds(60);
                 var stopwatch = Stopwatch.StartNew();
-                while (interceptedRequest == null && stopwatch.Elapsed < maxWaitTime)
+                while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
                 {
-                    await Task.Delay(500);  
+                    await Task.Delay(500);
                 }
                 stopwatch.Stop();
-                if (interceptedRequest != null)
+                if (interceptedResponse != null)
                 {
-                    payload = await ManejadorInterceptorSolicitud();
+                    payload = await ManejadorInterceptorRespuesta();
                 }
+                // while (interceptedRequest == null && stopwatch.Elapsed < maxWaitTime)
+                // {
+                //     await Task.Delay(500);  
+                // }
+
+                // if (interceptedRequest != null)
+                // {
+                //     payload = await ManejadorInterceptorSolicitud();
+                // }
                 await networkInterceptor.StopMonitoring();
 
 
@@ -132,39 +151,35 @@ namespace BuscarRegistroSanitarioService.services
         {
             return wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
         }
-        private async Task<ApiResponse> ManejadorInterceptorSolicitud()
+
+        private async Task<ApiResponse> ManejadorInterceptorRespuesta()
         {
             ApiResponse? payload = new ApiResponse();
 
-            using (var httpClient = new HttpClient())
+            var options = new JsonSerializerOptions
             {
-                var response = await httpClient.SendAsync(interceptedRequest);
-
-                if (response.IsSuccessStatusCode)
-                {
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                    };
-                    var responseBody = await response.Content.ReadAsStringAsync();
-                    payload = JsonSerializer.Deserialize<ApiResponse>(responseBody, options);
-                }
-            }
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            };
+            var responseBody = await interceptedResponse.Content.ReadAsStringAsync();
+            payload = JsonSerializer.Deserialize<ApiResponse>(responseBody, options);
 
             return payload;
         }
 
-        
-        public async Task<ApiResponse> paginar(BotonesPaginador boton ){
 
-              ApiResponse? payload = new ApiResponse();
-              string clase = "next";
-            switch (boton) {
+        public async Task<ApiResponse> paginar(BotonesPaginador boton)
+        {
+            interceptedResponse = null;
+            respuestas.Clear();
+            ApiResponse? payload = new ApiResponse();
+            string clase = "next";
+            switch (boton)
+            {
                 case BotonesPaginador.siguiente:
-                    clase="next";
+                    clase = "next";
                     break;
                 case BotonesPaginador.anterior:
-                    clase="prev";
+                    clase = "prev";
                     break;
             }
             try
@@ -172,21 +187,22 @@ namespace BuscarRegistroSanitarioService.services
                 var siguiente = WaitForElementToBeVisible(By.ClassName(clase));
 
                 await networkInterceptor.StartMonitoring();
-                if(!siguiente.GetAttribute("style").Contains("cursor: not-allowed;")) {
+                if (!siguiente.GetAttribute("style").Contains("cursor: not-allowed;"))
+                {
                     siguiente.Click();
                 }
 
                 var maxWaitTime = TimeSpan.FromSeconds(60);
                 var stopwatch = Stopwatch.StartNew();
-                while (interceptedRequest == null && stopwatch.Elapsed < maxWaitTime)
+                while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
                 {
-                    await Task.Delay(500);  
+                    await Task.Delay(500);
                 }
                 stopwatch.Stop();
 
-                if (interceptedRequest != null)
+                if (interceptedResponse != null)
                 {
-                    payload = await ManejadorInterceptorSolicitud();
+                    payload = await ManejadorInterceptorRespuesta();
                 }
                 await networkInterceptor.StopMonitoring();
 
@@ -209,7 +225,8 @@ namespace BuscarRegistroSanitarioService.services
     }
 }
 
-public enum BotonesPaginador {
-            siguiente,
-            anterior
+public enum BotonesPaginador
+{
+    siguiente,
+    anterior
 }

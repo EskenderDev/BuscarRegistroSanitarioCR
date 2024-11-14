@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("BuscarRegistroSanitarioService")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+720d43865bf01f4d8ffb2a7cfb3178fb9fcdcee3")]
 [assembly: System.Reflection.AssemblyProductAttribute("BuscarRegistroSanitarioService")]
 [assembly: System.Reflection.AssemblyTitleAttribute("BuscarRegistroSanitarioService")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
