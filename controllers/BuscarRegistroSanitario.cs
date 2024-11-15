@@ -1,4 +1,5 @@
 
+using System.Net;
 using BuscarRegistroSanitarioService.services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,10 +14,15 @@ namespace BuscarRegistroSanitarioService.Controllers
         public RegistroSanitarioController(ScrapingService scrapingService)
         {
             _scrapingService = scrapingService;
+            _scrapingService.OnInitialized += (sender, args) =>
+            {
+                Console.WriteLine("El servicio de scraping se ha inicializado completamente.");
+            };
         }
 
+
         [HttpGet("buscar")]
-        public async Task<IActionResult> BuscarRegistroSanitario([FromQuery] string? nombreProducto=null)
+        public async Task<IActionResult> BuscarRegistroSanitario([FromQuery] string nombreProducto)
         {
             if (string.IsNullOrEmpty(nombreProducto))
             {
@@ -33,30 +39,60 @@ namespace BuscarRegistroSanitarioService.Controllers
             return Ok(resultado);
         }
 
-        [HttpGet("siguiente")]
-        public async Task<IActionResult> PaginaSiguiente()
+        [HttpGet("paginacion")]
+        public async Task<IActionResult> Paginar([FromQuery] string accion)
         {
-            var resultado = await _scrapingService.paginar(BotonesPaginador.siguiente);
-
-            if (resultado == null || resultado.Data == null || resultado.Data.Count == 0)
+            BotonesPaginador boton = BotonesPaginador.siguiente;
+            if (accion.ToLower() == "anterior")
             {
-                return NotFound("No se encontraron resultados para el producto especificado.");
+                boton = BotonesPaginador.anterior;
             }
+            var resultado = await _scrapingService.paginar(boton);
 
-            return Ok(resultado);
+
+            if (resultado.StatusCode == 204)
+            {
+
+                return NoContent();
+            }
+            else if (resultado.StatusCode == 200)
+            {
+                return Ok(resultado);
+            }
+            else
+            {
+                return StatusCode(resultado.StatusCode, resultado.Message);
+            }
         }
 
-        [HttpGet("anterior")]
-        public async Task<IActionResult> PaginaAnterior()
+        [HttpGet("cambiarTipo")]
+        public IActionResult CambiarTipo([FromQuery] TipoProducto tipoProducto)
         {
-            var resultado = await _scrapingService.paginar(BotonesPaginador.anterior);
+            var resultado = _scrapingService.CambiarTipo(tipoProducto);
 
-            if (resultado == null || resultado.Data == null || resultado.Data.Count == 0)
+            if (resultado.StatusCode == 200)
             {
-                return NotFound("No se encontraron resultados para el producto especificado.");
+                return Ok(resultado);
+            }
+            else
+            {
+                return StatusCode(resultado.StatusCode, resultado);
+
+            }
+        }
+
+        [HttpGet("status")]
+        public IActionResult GetStatus()
+        {
+            if (_scrapingService.IsInitialized)
+            {
+                return Ok("El servicio está listo.");
+            }
+            else
+            {
+                return StatusCode((int)HttpStatusCode.ServiceUnavailable, "El servicio está inicializando.");
             }
 
-            return Ok(resultado);
         }
     }
 }

@@ -4,6 +4,7 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using System.Diagnostics;
+using System.Net;
 using System.Text.Json;
 
 namespace BuscarRegistroSanitarioService.services
@@ -18,6 +19,7 @@ namespace BuscarRegistroSanitarioService.services
         private INetwork? networkInterceptor;
         private WebDriverWait wait;
         private readonly object lockObj = new object();
+        public bool IsInitialized { get; private set; } = false;
         public void inicializar()
         {
             if (driver == null)
@@ -34,43 +36,65 @@ namespace BuscarRegistroSanitarioService.services
                         driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
 
                         networkInterceptor = driver?.Manage().Network;
+                        networkInterceptor?.AddRequestHandler(networkRequestHandler());
                         networkInterceptor?.AddResponseHandler(networkResponseHandler());
 
                         wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
                         iniciarCampos();
+                        IsInitialized = true;
+                        OnInitialized?.Invoke(this, EventArgs.Empty);
                     }
 
                 }
             }
         }
 
-        private NetworkResponseHandler networkResponseHandler()
+        public event EventHandler? OnInitialized;
+
+        private NetworkRequestHandler networkRequestHandler()
         {
-            int count = 0;
-            return new NetworkResponseHandler()
+            return new NetworkRequestHandler
             {
-                ResponseMatcher = response => response.StatusCode == 200 && response.Url.Contains("https://gateway.registrelo.go.cr/reports/v1/publicreports/getPublicReport?reportDefinitionCode"),
-                ResponseTransformer = response =>
+                RequestMatcher = request => request.Url.Contains("/reports/v1/publicreports/getPublicReport") && request.Headers.ContainsKey("api-token") && request.Method == HttpMethod.Get.Method,
+
+                RequestTransformer = request =>
                 {
-                    Console.WriteLine(count++);
-                    if (interceptedRequest?.RequestUri.ToString() == response.Url)
+                    interceptedRequest = new HttpRequestMessage(HttpMethod.Get, request.Url);
+                    foreach (var header in request.Headers)
                     {
-                        interceptedResponse = new HttpResponseMessage((System.Net.HttpStatusCode)response.StatusCode);
-                        foreach (var header in response.Headers)
-                        {
-                            interceptedResponse.Headers.TryAddWithoutValidation(header.Key, header.Value);
-                            interceptedResponse.Content = new StringContent(response.Content.ReadAsString());
-                        }
+                        interceptedRequest.Headers.TryAddWithoutValidation(header.Key, header.Value);
                     }
-                    return response;
+                    return request;
                 }
             };
 
         }
+        private NetworkResponseHandler networkResponseHandler()
+        {
+            return new NetworkResponseHandler()
+            {
+                ResponseMatcher = response => response.StatusCode == 200 && response.Url.Contains("https://gateway.registrelo.go.cr/reports/v1/publicreports/getPublicReport"),
+                ResponseTransformer = response =>
+                {
+
+
+                    interceptedResponse = new HttpResponseMessage((System.Net.HttpStatusCode)response.StatusCode);
+                    foreach (var header in response.Headers)
+                    {
+                        interceptedResponse.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                        interceptedResponse.Content = new StringContent(response.Content.ReadAsString());
+                    }
+
+                    return response;
+
+                }
+
+            };
+        }
         private void iniciarCampos()
         {
             wait.Until(driver => ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").ToString() == "complete");
-            var advanceSearch = WaitForElementToBeVisible(By.ClassName("advance-search"));
+            var advanceSearch = EsperarQueElementoSeaClickable(By.ClassName("advance-search"));
             wait.Until(d => advanceSearch.Displayed);
             advanceSearch.Click();
 
@@ -93,11 +117,36 @@ namespace BuscarRegistroSanitarioService.services
             estado.Click();
             var listaEstado = wait.Until(d => d.FindElement(By.Id("downshift-3-item-0")));
             listaEstado.Click();
-
+            IsInitialized = true;
+            // Lanza el evento que notifica la inicialización.
+            OnInitialized?.Invoke(this, EventArgs.Empty);
 
         }
-        public async Task<ApiResponse> BuscarRegistroSanitario(string? nombreProducto, int? skip = 0)
+
+        public ApiResponse CambiarTipo(TipoProducto tipoProducto)
         {
+            ApiResponse? payload = new ApiResponse();
+            try
+            {
+                var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+                tipo.Click();
+                var listaTipo = wait.Until(d => d.FindElement(By.Id($"downshift-1-item-{((int)tipoProducto)}")));
+                listaTipo.Click();
+                payload.Status = HttpStatusCode.OK.ToString();
+                payload.StatusCode = (int)HttpStatusCode.OK;
+                payload.Message = "El tipo de producto se ha Actualizado";
+            } catch (Exception err)
+            {
+                payload.Status = HttpStatusCode.InternalServerError.ToString();
+                payload.StatusCode = (int)HttpStatusCode.InternalServerError;
+                payload.Errors = err.Message;
+                payload.Message = "Error al cambiar el tipo de producto.";
+            }
+            return payload;
+        }
+        public async Task<ApiResponse> BuscarRegistroSanitario(string nombreProducto)
+        {
+            interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
             ApiResponse? payload = new ApiResponse();
@@ -126,15 +175,7 @@ namespace BuscarRegistroSanitarioService.services
                 {
                     payload = await ManejadorInterceptorRespuesta();
                 }
-                // while (interceptedRequest == null && stopwatch.Elapsed < maxWaitTime)
-                // {
-                //     await Task.Delay(500);  
-                // }
 
-                // if (interceptedRequest != null)
-                // {
-                //     payload = await ManejadorInterceptorSolicitud();
-                // }
                 await networkInterceptor.StopMonitoring();
 
 
@@ -147,7 +188,7 @@ namespace BuscarRegistroSanitarioService.services
 
             return payload;
         }
-        private IWebElement WaitForElementToBeVisible(By by)
+        private IWebElement EsperarQueElementoSeaClickable(By by)
         {
             return wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
         }
@@ -169,6 +210,7 @@ namespace BuscarRegistroSanitarioService.services
 
         public async Task<ApiResponse> paginar(BotonesPaginador boton)
         {
+            interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
             ApiResponse? payload = new ApiResponse();
@@ -184,13 +226,15 @@ namespace BuscarRegistroSanitarioService.services
             }
             try
             {
-                var siguiente = WaitForElementToBeVisible(By.ClassName(clase));
-
-                await networkInterceptor.StartMonitoring();
-                if (!siguiente.GetAttribute("style").Contains("cursor: not-allowed;"))
+                var botonPaginacion = EsperarQueElementoSeaClickable(By.ClassName(clase));
+                if (botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;"))
                 {
-                    siguiente.Click();
+                    payload.StatusCode = 200;
+                    payload.Message = "Última página alcanzada.";
+                    return payload;
                 }
+                botonPaginacion.Click();
+                await networkInterceptor.StartMonitoring();
 
                 var maxWaitTime = TimeSpan.FromSeconds(60);
                 var stopwatch = Stopwatch.StartNew();
@@ -203,6 +247,10 @@ namespace BuscarRegistroSanitarioService.services
                 if (interceptedResponse != null)
                 {
                     payload = await ManejadorInterceptorRespuesta();
+                    if (botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;"))
+                    {
+                        payload.Message = "Última página alcanzada.";
+                    }
                 }
                 await networkInterceptor.StopMonitoring();
 
@@ -210,12 +258,13 @@ namespace BuscarRegistroSanitarioService.services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                payload.Errors = ex.Message;
+                payload.StatusCode = 500; 
+                payload.Message = "Ocurrió un error en la paginación.";
 
             }
 
             return payload;
-            //
         }
         public void Dispose()
         {
@@ -229,4 +278,20 @@ public enum BotonesPaginador
 {
     siguiente,
     anterior
+}
+
+public enum TipoProducto
+{
+    Alimento = 0, 
+    Cosmético = 1, 
+    Químico = 2, 
+    EquipoYMaterialBiomédico = 3, 
+    MedicamentosBiológicos = 4, 
+    MedicamentosBiológicosHomologados = 5, 
+    Medicamentos = 6, 
+    MedicamentosHomologados = 7, 
+    Plaguicidas = 8, 
+    MateriasPrimas = 9, 
+    ProductosHigiénicos = 10, 
+    ProductosNaturales = 11
 }
