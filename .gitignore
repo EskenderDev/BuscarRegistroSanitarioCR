@@ -1,0 +1,112 @@
+# Compiled files
+bin/
+obj/
+out/
+
+# User-specific files
+*.user
+*.rsuser
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Mono Auto Generated Files
+mono_crash.*
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# Visual Studio specific files
+.vscode/
+.vs/
+
+# Windows-specific files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS-specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Dependency directories
+packages/
+node_modules/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.err
+*.orig
+*.seed
+
+# Build directories
+*.vspscc
+*.vssscc
+*.vspcc
+*.coverage
+*.coveragexml
+
+# Configuration files
+appsettings.json
+appsettings.*.json
+secrets.json
+
+# JetBrains Rider files
+.idea/
+
+# ReSharper files
+*_ReSharper.*
+
+# Rider logs
+.idea/
+
+# Dotnet specific files
+*.pdb
+*.mdb
+*.exe
+*.ilk
+*.meta
+*.obj
+*.log
+
+# Publish output
+wwwroot/
+wwwroot/dist/
+
+# NuGet
+*.nupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Yarn
+.yarn/
+.yarnrc
+
+# Bundle output
+*.min.js
+*.min.css
+.bundle.*
+
+# Lock files
+*.lock.json
+
+# Other environment-specific files
+.env
+.env.*
+
+# Database files
+*.mdf
+*.ldf
+
+# Local history (optional)
+.history/
