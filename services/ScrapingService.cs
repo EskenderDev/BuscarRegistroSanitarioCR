@@ -98,12 +98,12 @@ namespace BuscarRegistroSanitarioService.services
             wait.Until(d => advanceSearch.Displayed);
             advanceSearch.Click();
 
-            if (driver.FindElements(By.ClassName("times-icon")).Count > 0)
+            if (driver?.FindElements(By.ClassName("times-icon")).Count > 0)
             {
                 var fechas = wait.Until(d => d.FindElements(By.ClassName("times-icon")));
                 wait.Until(d => fechas.First().Displayed);
-                fechas.First().Click();
-                fechas.Last().Click();
+                fechas?.First().Click();
+                fechas?.Last().Click();
 
             }
 
@@ -111,31 +111,32 @@ namespace BuscarRegistroSanitarioService.services
             var estado = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(12) > div:nth-child(2) > div > div:nth-child(1) > input")));
 
 
-            tipo.Click();
+            tipo?.Click();
             var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-item-6")));
-            listaTipo.Click();
-            estado.Click();
-            var listaEstado =  EsperarQueElementoSeaClickable(By.Id("downshift-3-item-0"));
+            listaTipo?.Click();
+            estado?.Click();
+            var listaEstado = EsperarQueElementoSeaClickable(By.Id("downshift-3-item-0"));
             listaEstado.Click();
             IsInitialized = true;
-            // Lanza el evento que notifica la inicialización.
+           
             OnInitialized?.Invoke(this, EventArgs.Empty);
 
         }
 
-        public ApiResponse CambiarTipo(TipoProducto tipoProducto)
+        public ApiResponse<ProductData> CambiarTipo(TipoProducto tipoProducto)
         {
-            ApiResponse? payload = new ApiResponse();
+            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
             try
             {
                 var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
-                tipo.Click();
+                tipo?.Click();
                 var listaTipo = wait.Until(d => d.FindElement(By.Id($"downshift-1-item-{((int)tipoProducto)}")));
-                listaTipo.Click();
+                listaTipo?.Click();
                 payload.Status = HttpStatusCode.OK.ToString();
                 payload.StatusCode = (int)HttpStatusCode.OK;
                 payload.Message = "El tipo de producto se ha Actualizado";
-            } catch (Exception err)
+            }
+            catch (Exception err)
             {
                 payload.Status = HttpStatusCode.InternalServerError.ToString();
                 payload.StatusCode = (int)HttpStatusCode.InternalServerError;
@@ -144,12 +145,12 @@ namespace BuscarRegistroSanitarioService.services
             }
             return payload;
         }
-        public async Task<ApiResponse> BuscarRegistroSanitario(string nombreProducto)
+        public async Task<ApiResponse<ProductData>> BuscarRegistroSanitario(string nombreProducto)
         {
             interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
-            ApiResponse? payload = new ApiResponse();
+            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
 
             try
             {
@@ -157,12 +158,12 @@ namespace BuscarRegistroSanitarioService.services
                 await networkInterceptor.StartMonitoring();
 
                 var nombre = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(3) > div:nth-child(2) > div > input")));
-                nombre.Clear();
-                nombre.SendKeys(nombreProducto);
+                nombre?.Clear();
+                nombre?.SendKeys(nombreProducto);
 
                 var reportButton = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm button[type='submit']")));
 
-                reportButton.Click();
+                reportButton?.Click();
 
                 var maxWaitTime = TimeSpan.FromSeconds(60);
                 var stopwatch = Stopwatch.StartNew();
@@ -193,27 +194,27 @@ namespace BuscarRegistroSanitarioService.services
             return wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
         }
 
-        private async Task<ApiResponse> ManejadorInterceptorRespuesta()
+        private async Task<ApiResponse<ProductData>?> ManejadorInterceptorRespuesta()
         {
-            ApiResponse? payload = new ApiResponse();
+            ApiResponse<ProductData> payload = new ApiResponse<ProductData>();
 
             var options = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             var responseBody = await interceptedResponse.Content.ReadAsStringAsync();
-            payload = JsonSerializer.Deserialize<ApiResponse>(responseBody, options);
+            payload = JsonSerializer.Deserialize<ApiResponse<ProductData>>(responseBody, options);
 
             return payload;
         }
 
 
-        public async Task<ApiResponse> paginar(BotonesPaginador boton)
+        public async Task<ApiResponse<ProductData>> paginar(BotonesPaginador boton)
         {
             interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
-            ApiResponse? payload = new ApiResponse();
+            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
             string clase = "next";
             switch (boton)
             {
@@ -224,10 +225,29 @@ namespace BuscarRegistroSanitarioService.services
                     clase = "prev";
                     break;
             }
+            var emptyState = false;
+            try {
+                emptyState = driver.FindElement(By.ClassName("empty-state")).Displayed;
+
+            } catch (NoSuchElementException) {
+               emptyState = false;
+            } 
+             if(emptyState) {
+                    payload.StatusCode = 204;
+                    payload.Message = "Aun no hay datos que mostrar.";
+                    return payload;
+                };
             try
             {
                 var botonPaginacion = EsperarQueElementoSeaClickable(By.ClassName(clase));
-                if (botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;"))
+                var botonEstaDeshabilitado = botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;");
+
+                if (botonEstaDeshabilitado && payload.Data == null)
+                {
+                    payload.StatusCode = 204;
+                    return payload;
+                };
+                if (botonEstaDeshabilitado)
                 {
                     payload.StatusCode = 200;
                     payload.Message = "Última página alcanzada.";
@@ -259,7 +279,7 @@ namespace BuscarRegistroSanitarioService.services
             catch (Exception ex)
             {
                 payload.Errors = ex.Message;
-                payload.StatusCode = 500; 
+                payload.StatusCode = 500;
                 payload.Message = "Ocurrió un error en la paginación.";
 
             }
@@ -270,6 +290,28 @@ namespace BuscarRegistroSanitarioService.services
         {
             driver?.Quit();
             driver = null;
+        }
+
+        internal ApiResponse<string> ObtenerTipos()
+        {
+            ApiResponse<string> payload = new ApiResponse<string>();
+            try
+            {
+                var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+                tipo?.Click();
+                var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-menu")));
+                var tipos = listaTipo?.FindElements(By.CssSelector("li"));
+                payload.Data = tipos.Select(t => t.Text).ToList();
+                tipo?.Click();
+                payload.StatusCode = 200;
+                payload.Message = "Tipos obtenidos correctamente.";
+            }
+            catch (Exception ex)
+            {
+                payload.StatusCode = 500;
+                payload.Message = $"Error al obtener los tipos: {ex.Message}";
+            }
+            return payload;
         }
     }
 }
@@ -282,16 +324,16 @@ public enum BotonesPaginador
 
 public enum TipoProducto
 {
-    Alimento = 0, 
-    Cosmético = 1, 
-    Químico = 2, 
-    EquipoYMaterialBiomédico = 3, 
-    MedicamentosBiológicos = 4, 
-    MedicamentosBiológicosHomologados = 5, 
-    Medicamentos = 6, 
-    MedicamentosHomologados = 7, 
-    Plaguicidas = 8, 
-    MateriasPrimas = 9, 
-    ProductosHigiénicos = 10, 
+    Alimento = 0,
+    Cosmético = 1,
+    Químico = 2,
+    EquipoYMaterialBiomédico = 3,
+    MedicamentosBiológicos = 4,
+    MedicamentosBiológicosHomologados = 5,
+    Medicamentos = 6,
+    MedicamentosHomologados = 7,
+    Plaguicidas = 8,
+    MateriasPrimas = 9,
+    ProductosHigiénicos = 10,
     ProductosNaturales = 11
 }
