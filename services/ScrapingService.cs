@@ -115,7 +115,7 @@ namespace BuscarRegistroSanitarioService.services
             var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-item-6")));
             listaTipo.Click();
             estado.Click();
-            var listaEstado = wait.Until(d => d.FindElement(By.Id("downshift-3-item-0")));
+            var listaEstado =  EsperarQueElementoSeaClickable(By.Id("downshift-3-item-0"));
             listaEstado.Click();
             IsInitialized = true;
             // Lanza el evento que notifica la inicialización.
