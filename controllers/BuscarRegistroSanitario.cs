@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace BuscarRegistroSanitarioService.Controllers
 {
     [ApiController]
-    [Route("api/[controller]")]
+    [Route("api/")]
     public class RegistroSanitarioController : ControllerBase
     {
         private readonly ScrapingService _scrapingService;
@@ -40,10 +40,10 @@ namespace BuscarRegistroSanitarioService.Controllers
         }
 
         [HttpGet("paginacion")]
-        public async Task<IActionResult> Paginar([FromQuery] string accion)
+        public async Task<IActionResult> Paginar([FromQuery] string comando)
         {
             BotonesPaginador boton = BotonesPaginador.siguiente;
-            if (accion.ToLower() == "anterior")
+            if (comando.ToLower() == "anterior")
             {
                 boton = BotonesPaginador.anterior;
             }
