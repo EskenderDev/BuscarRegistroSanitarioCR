@@ -4,7 +4,7 @@ using System.Collections.Generic;
 
 namespace BuscarRegistroSanitarioService.models
 {
-    public class ApiResponse
+    public class ApiResponse<T>
     {
         [JsonPropertyName("statusCode")]
         public int StatusCode { get; set; }
@@ -16,13 +16,19 @@ namespace BuscarRegistroSanitarioService.models
         public object Errors { get; set; }
         
         [JsonPropertyName("data")]
-        public List<ProductData> Data { get; set; }
+        public List<T> Data { get; set; }
         
         [JsonPropertyName("paginate")]
         public Paginate Paginate { get; set; }
         
         [JsonPropertyName("message")]
         public string Message { get; set; }
+
+        public ApiResponse()
+    {
+        Message = string.Empty;
+        StatusCode = 200; // OK por defecto
+    }
     }
 
     public class Paginate
