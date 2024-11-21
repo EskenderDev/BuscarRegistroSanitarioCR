@@ -81,6 +81,21 @@ namespace BuscarRegistroSanitarioService.Controllers
             }
         }
 
+        [HttpGet("tiposProducto")]
+        public IActionResult ObtenerTipos(){
+            var resultado = _scrapingService.ObtenerTipos();
+      
+          if (resultado.StatusCode == 200)
+            {
+                return Ok(resultado);
+            }
+            else
+            {
+                return StatusCode(resultado.StatusCode, resultado);
+
+            }
+        }
+
         [HttpGet("status")]
         public IActionResult GetStatus()
         {
