@@ -232,7 +232,9 @@ namespace BuscarRegistroSanitarioService.services
 
             } catch (NoSuchElementException) {
                emptyState = false;
-            } 
+            } catch (Exception) {
+                emptyState = false;
+            }
              if(emptyState) {
                     payload.StatusCode = 204;
                     payload.Message = "Aun no hay datos que mostrar.";
@@ -243,7 +245,7 @@ namespace BuscarRegistroSanitarioService.services
                 var botonPaginacion = EsperarQueElementoSeaClickable(By.ClassName(clase));
                 var botonEstaDeshabilitado = botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;");
 
-                if (botonEstaDeshabilitado && payload.Data == null)
+                if (botonEstaDeshabilitado && payload.Data.Count == 0)
                 {
                     payload.StatusCode = 204;
                     return payload;
