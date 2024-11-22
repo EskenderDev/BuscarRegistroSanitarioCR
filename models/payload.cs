@@ -27,7 +27,12 @@ namespace BuscarRegistroSanitarioService.models
         public ApiResponse()
     {
         Message = string.Empty;
-        StatusCode = 200; // OK por defecto
+        Data = new List<T>();
+        StatusCode = 200; 
+        Status = "OK";
+        Errors = string.Empty;
+        Paginate = new Paginate();
+
     }
     }
 
