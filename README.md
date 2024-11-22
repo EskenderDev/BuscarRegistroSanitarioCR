@@ -170,7 +170,7 @@ Este proyecto está licenciado bajo la [MIT License](./LICENSE). Consulta el arc
 
 Este proyecto incluye componentes de terceros licenciados bajo:  
 
-- **Apache 2.0** (ver [`licenses/Apache-2.0.txt`](./licenses/Apache-2.0.txt))  
-- **MIT** (ver [`licenses/MIT.txt`](./licenses/MIT.txt))  
+- **Apache 2.0** (ver [`Licenses/Apache-2.0.txt`](./Licenses/Apache-2.0.txt))  
+- **MIT** (ver [`Licenses/MIT.txt`](./Licenses/MIT.txt))  
 
-Para obtener una lista completa de las atribuciones de terceros, consulta el archivo [`licenses/THIRD_PARTY_NOTICES.txt`](./licenses/THIRD_PARTY_NOTICES.txt).
+Para obtener una lista completa de las atribuciones de terceros, consulta el archivo [`Licenses/THIRD_PARTY_NOTICES.txt`](./Licenses/THIRD_PARTY_NOTICES.txt).
