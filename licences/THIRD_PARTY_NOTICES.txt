@@ -1,0 +1,14 @@
+# Notificaciones de Licencias de Terceros
+
+
+## Selenium .NET Bindings
+Licencia: Apache 2.0  
+Autor: Selenium Project Contributors  
+Repositorio: https://github.com/SeleniumHQ/selenium  
+Texto de la licencia: Ver `licenses/Apache-2.0.txt`  
+
+## ASP.NET Core
+Licencia: MIT  
+Autor: Microsoft Corporation 
+Repositorio: https://github.com/dotnet/aspnetcore 
+Texto de la licencia: Ver `licenses/MIT.txt`  
