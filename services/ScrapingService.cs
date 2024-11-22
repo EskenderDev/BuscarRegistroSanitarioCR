@@ -29,8 +29,9 @@ namespace BuscarRegistroSanitarioService.services
                     if (driver == null)
                     {
                         var chromeOptions = new ChromeOptions();
-                        //chromeOptions.AddArgument("--headless");
-                        chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");//"--headless");
+                        chromeOptions.AddArgument("--headless");
+                        //chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
+                 
 
                         driver = new ChromeDriver(chromeOptions);
                         driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
