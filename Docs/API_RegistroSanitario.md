@@ -1,5 +1,3 @@
-Aquí tienes un archivo `README.md` para documentar el uso de tu API con base en el controlador proporcionado:
-
 # API de Búsqueda de Registro Sanitario
 
 Esta API permite realizar búsquedas de registros sanitarios y gestionar paginación, tipos de productos, y obtener información sobre el estado del servicio de scraping.
