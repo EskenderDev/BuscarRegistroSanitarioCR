@@ -63,8 +63,8 @@ GET http://localhost:5000/api/buscar?nombreProducto=panadol
 **Descripción:** Navega entre páginas de resultados.
 
 #### Parámetros de consulta:
-- `comando` (opcional): Valores posibles:
-  - `siguiente` (por defecto)
+- `comando`: Valores posibles:
+  - `siguiente`
   - `anterior`
 
 #### Ejemplo de solicitud:
