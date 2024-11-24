@@ -1,8 +1,10 @@
 using BuscarRegistroSanitarioService;
+using BuscarRegistroSanitarioService.Hubs;
 using BuscarRegistroSanitarioService.services;
 using BuscarRegistroSanitarioService.Swagger.Filters;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.SignalR;
 
 public class Program
 {
@@ -10,26 +12,26 @@ public class Program
     {
         var host = CreateHostBuilder(args).Build();
 
+        var _hubContext = host.Services.GetRequiredService<IHubContext<NotificationHub>>();
         var scrapingService = host.Services.GetRequiredService<ScrapingService>();
-        scrapingService.inicializar();
-        Console.CancelKeyPress += (sender, eventArgs) =>
+
+        await scrapingService.inicializar();
+
+        scrapingService.OnInitialized += async (object? sender, EventArgs e) => {
+            await _hubContext.Clients.All.SendAsync("ReceiveStatus", "ChromeDriver Abierto.");
+        };
+
+        Console.CancelKeyPress += async (sender, eventArgs) =>
         {
             Console.WriteLine("Interrupción Ctrl+C detectada. Cerrando la aplicación...");
-            scrapingService.Dispose();
+            await scrapingService.Dispose();
             eventArgs.Cancel = true;
         };
 
-        AppDomain.CurrentDomain.ProcessExit += (sender, eventArgs) =>
-        {
-            Console.WriteLine("Señal de cierre del sistema recibida. Cerrando la aplicación...");
-            scrapingService.Dispose();
-        };
-
-
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
-        lifetime.ApplicationStopping.Register(() =>
+        lifetime.ApplicationStopping.Register(async () =>
         {
-            scrapingService.Dispose();
+            await scrapingService.Dispose();
             Console.WriteLine("ScrapingService liberado al detener la aplicación.");
         });
 
@@ -51,8 +53,8 @@ public class Startup
         services.AddAuthorization();
         services.AddHostedService<Worker>();
         services.AddControllers();
+        services.AddSignalR();
         services.AddSingleton<ScrapingService>();
-        services.AddSwaggerGen();
         services.AddSwaggerGen(c =>
         {   
             c.OperationFilter<EnumSchemaFilter>();
@@ -73,11 +75,10 @@ public class Startup
                     Url = new Uri("https://opensource.org/licenses/MIT")
                 }
             });
-
     var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     c.IncludeXmlComments(xmlPath);
-});
+    });
 
     }
 
@@ -109,6 +110,7 @@ public class Startup
         app.UseEndpoints(endpoints =>
         {
             endpoints.MapControllers();
+            endpoints.MapHub<NotificationHub>("/notifications"); 
         });
     }
 }
