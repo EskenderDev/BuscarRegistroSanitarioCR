@@ -1,57 +1,8 @@
 using System.Text.Json.Serialization;
-using System;
-using System.Collections.Generic;
 
-namespace BuscarRegistroSanitarioService.models
-{
-    public class ApiResponse<T>
-    {
-        [JsonPropertyName("statusCode")]
-        public int StatusCode { get; set; }
-        
-        [JsonPropertyName("status")]
-        public string Status { get; set; }
-        
-        [JsonPropertyName("errors")]
-        public object Errors { get; set; }
-        
-        [JsonPropertyName("data")]
-        public List<T> Data { get; set; }
-        
-        [JsonPropertyName("paginate")]
-        public Paginate Paginate { get; set; }
-        
-        [JsonPropertyName("message")]
-        public string Message { get; set; }
+namespace BuscarRegistroSanitarioService.DTO;
 
-        public ApiResponse()
-    {
-        Message = string.Empty;
-        Data = new List<T>();
-        StatusCode = 200; 
-        Status = "OK";
-        Errors = string.Empty;
-        Paginate = new Paginate();
-
-    }
-    }
-
-    public class Paginate
-    {
-        [JsonPropertyName("skip")]
-        public string Skip { get; set; }
-        
-        [JsonPropertyName("limit")]
-        public string Limit { get; set; }
-        
-        [JsonPropertyName("page")]
-        public int Page { get; set; }
-        
-        [JsonPropertyName("count")]
-        public int Count { get; set; }
-    }
-
-    public class ProductData
+ public class ProductData
     {
         [JsonPropertyName("lineNumber")]
         public int LineNumber { get; set; }
@@ -134,4 +85,3 @@ namespace BuscarRegistroSanitarioService.models
         [JsonPropertyName("isRecognitionClinicalStudies")]
         public int IsRecognitionClinicalStudies { get; set; }
     }
-}

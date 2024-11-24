@@ -1,6 +1,7 @@
 
 using System.Net;
-using BuscarRegistroSanitarioService.models;
+using BuscarRegistroSanitarioService.Enums;
+using BuscarRegistroSanitarioService.DTO;
 using BuscarRegistroSanitarioService.services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -163,9 +164,9 @@ namespace BuscarRegistroSanitarioService.Controllers
         /// <response code="200">El servicio está listo.</response>
         /// <response code="503">El servicio se está inicializando.</response>
         [HttpGet("estado")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status200OK)]
-        [ProducesResponseType(typeof(string), StatusCodes.Status503ServiceUnavailable)]
-        public IActionResult GetEstado()
+        [ProducesResponseType(typeof(string), StatusCodes.Status200OK, "Text/plain")]
+        [ProducesResponseType(typeof(string), StatusCodes.Status503ServiceUnavailable, "Text/plain")]
+        public IActionResult ObtenerEstado()
         {
             if (_scrapingService.IsInitialized)
             {
@@ -177,5 +178,6 @@ namespace BuscarRegistroSanitarioService.Controllers
             }
 
         }
+
     }
 }

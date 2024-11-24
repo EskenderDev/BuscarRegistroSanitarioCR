@@ -1,17 +1,21 @@
 
-using BuscarRegistroSanitarioService.models;
+using BuscarRegistroSanitarioService.Enums;
+using BuscarRegistroSanitarioService.DTO;
 using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
+using BuscarRegistroSanitarioService.Hubs;
+using Microsoft.AspNetCore.SignalR;
 
 namespace BuscarRegistroSanitarioService.services
 {
 
-    public class ScrapingService
+    public class ScrapingService(IHubContext<NotificationHub> hubContext)
     {
+        private readonly IHubContext<NotificationHub> _hubContext = hubContext;
         private static IWebDriver? driver;
         private List<(string Origin, string ResponseUrl, string ResponseBody)> respuestas = new List<(string, string, string)>();
         private HttpRequestMessage? interceptedRequest = null;
@@ -20,7 +24,9 @@ namespace BuscarRegistroSanitarioService.services
         private WebDriverWait wait;
         private readonly object lockObj = new object();
         public bool IsInitialized { get; private set; } = false;
-        public void inicializar()
+
+        public event EventHandler? OnInitialized;
+        public async Task inicializar()
         {
             if (driver == null)
             {
@@ -29,8 +35,8 @@ namespace BuscarRegistroSanitarioService.services
                     if (driver == null)
                     {
                         var chromeOptions = new ChromeOptions();
-                        chromeOptions.AddArgument("--headless");
-                        //chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
+                        //chromeOptions.AddArgument("--headless");
+                        chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
                  
 
                         driver = new ChromeDriver(chromeOptions);
@@ -50,9 +56,7 @@ namespace BuscarRegistroSanitarioService.services
             }
         }
 
-        public event EventHandler? OnInitialized;
-
-        private NetworkRequestHandler networkRequestHandler()
+       private NetworkRequestHandler networkRequestHandler()
         {
             return new NetworkRequestHandler
             {
@@ -124,9 +128,9 @@ namespace BuscarRegistroSanitarioService.services
 
         }
 
-        public ApiResponse<ProductData> CambiarTipo(TipoProducto tipoProducto)
+        public ApiResponse<string> CambiarTipo(TipoProducto tipoProducto)
         {
-            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
+            ApiResponse<string>? payload = new ApiResponse<string>();
             try
             {
                 var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
@@ -289,12 +293,6 @@ namespace BuscarRegistroSanitarioService.services
 
             return payload;
         }
-        public void Dispose()
-        {
-            driver?.Quit();
-            driver = null;
-        }
-
         internal ApiResponse<string> ObtenerTipos()
         {
             ApiResponse<string> payload = new ApiResponse<string>();
@@ -316,27 +314,16 @@ namespace BuscarRegistroSanitarioService.services
             }
             return payload;
         }
+
+        public async Task Dispose()
+        {
+            driver?.Quit();
+            driver = null;
+            await _hubContext.Clients.All.SendAsync("ReceiveStatus", "ChromeDriver cerrado.");
+        }
+
     }
 }
 
-public enum BotonesPaginador
-{
-    siguiente,
-    anterior
-}
 
-public enum TipoProducto
-{
-    Alimento = 0,
-    Cosmético = 1,
-    Químico = 2,
-    EquipoYMaterialBiomédico = 3,
-    MedicamentosBiológicos = 4,
-    MedicamentosBiológicosHomologados = 5,
-    Medicamentos = 6,
-    MedicamentosHomologados = 7,
-    Plaguicidas = 8,
-    MateriasPrimas = 9,
-    ProductosHigiénicos = 10,
-    ProductosNaturales = 11
-}
+
