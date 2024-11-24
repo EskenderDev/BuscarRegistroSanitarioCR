@@ -35,8 +35,8 @@ namespace BuscarRegistroSanitarioService.services
                     if (driver == null)
                     {
                         var chromeOptions = new ChromeOptions();
-                        //chromeOptions.AddArgument("--headless");
-                        chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
+                        chromeOptions.AddArgument("--headless");
+                        //chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
                  
 
                         driver = new ChromeDriver(chromeOptions);
