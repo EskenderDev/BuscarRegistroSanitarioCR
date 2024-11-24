@@ -4,16 +4,19 @@
 
 ## Tabla de Contenidos
 
-- [Requisitos Previos](#requisitos-previos)
-- [Instalación](#instalación)
-  - [En Windows](#en-windows)
-  - [En Linux](#en-linux)
-- [Uso](#uso)
-- [Mantenimiento del Servicio](#mantenimiento-del-servicio)
-  - [Comandos útiles en Windows](#comandos-útiles-en-windows)
-  - [Comandos útiles en Linux](#comandos-útiles-en-linux)
-- [Contribución](#contribución)
-- [Licencia](#licencia)
+- [BuscarRegistroSanitarioCR](#buscarregistrosanitariocr)
+  - [Tabla de Contenidos](#tabla-de-contenidos)
+  - [Requisitos Previos](#requisitos-previos)
+  - [Instalación](#instalación)
+    - [En Windows](#en-windows)
+    - [En Linux](#en-linux)
+  - [Uso](#uso)
+  - [Mantenimiento del Servicio](#mantenimiento-del-servicio)
+    - [Comandos útiles en Windows](#comandos-útiles-en-windows)
+    - [Comandos útiles en Linux](#comandos-útiles-en-linux)
+  - [Contribución](#contribución)
+  - [Licencia](#licencia)
+  - [Licencias de Terceros](#licencias-de-terceros)
 
 ---
 
@@ -104,7 +107,7 @@ Antes de instalar **BuscarRegistroSanitarioCR**, asegúrate de contar con:
 
 Una vez instalado y ejecutado, el scraper interactúa con el formulario del sitio web [registrelo.go.cr](https://v2.registrelo.go.cr/reports/12) para extraer la información del registro sanitario interceptando la respuesta en formato JSON.
 
-Consulta la documentación interna del proyecto para ejemplos específicos de cómo utilizar las funcionalidades.
+Consulta la [documentación](Docs/API_RegistroSanitario.md) interna del proyecto para ejemplos específicos de cómo utilizar las funcionalidades.
 
 ---
 
