@@ -87,7 +87,19 @@ GET http://localhost:5000/api/paginacion?comando=siguiente
 **Descripción:** Cambia el tipo de producto a buscar.
 
 #### Parámetros de consulta:
-- `tipoProducto` (requerido): Código del tipo de producto.
+- `tipoProducto` (requerido): Nombre del tipo de producto:
+    - Alimento.
+    - Cosmético.
+    - Químico. 
+    - EquipoYMaterialBiomédico .
+    - MedicamentosBiológicos.
+    - MedicamentosBiológicosHomologados.
+    - Medicamentos **(Predefinido)**. 
+    - MedicamentosHomologados.
+    - Plaguicidas.
+    - MateriasPrimas.
+    - ProductosHigiénicos.
+    - ProductosNaturales.
 
 #### Ejemplo de solicitud:
 ```
@@ -97,6 +109,10 @@ GET http://localhost:5000/api/cambiarTipo?tipoProducto=7
 #### Respuesta exitosa:
 - **Código:** `200 OK`  
   **Cuerpo:** Información actualizada del tipo de producto.
+- **Código:** `400 Bad Request`  
+  **Mensaje:** 
+    - "El nombre del tipo de producto no es válido."
+    - "Debe especificar el tipo de producto."
 
 #### Errores comunes:
 - **Código:** `500 Internal Server Error`  
@@ -122,14 +138,14 @@ GET http://localhost:5000/api/tiposProducto
 ---
 
 ### 5. Obtener Estado del Servicio
-**Endpoint:** `/api/status`  
+**Endpoint:** `/api/estado`  
 **Método:** `GET`
 
 **Descripción:** Verifica si el servicio de scraping está listo para usarse.
 
 #### Ejemplo de solicitud:
 ```
-GET http://localhost:5000/api/status
+GET http://localhost:5000/api/estado
 ```
 
 #### Respuestas:
