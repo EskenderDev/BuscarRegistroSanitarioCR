@@ -20,12 +20,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Folder Include="Docker/" />
     <Folder Include="Docs/" />
+    <Folder Include="Tests/" />
   </ItemGroup>
 
   <PropertyGroup>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
   </PropertyGroup>
-  
+
 </Project>

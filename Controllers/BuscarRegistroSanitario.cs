@@ -1,3 +1,4 @@
+namespace BuscarRegistroSanitarioService.Controllers;
 
 using System.Net;
 using BuscarRegistroSanitarioService.Enums;
@@ -5,179 +6,247 @@ using BuscarRegistroSanitarioService.DTO;
 using BuscarRegistroSanitarioService.services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using BuscarRegistroSanitarioService.Exceptions;
+using BuscarRegistroSanitarioCR.DTO;
+using BuscarRegistroSanitarioService.Loggin;
 
-namespace BuscarRegistroSanitarioService.Controllers
+[ApiController]
+[Route("api/")]
+public class RegistroSanitarioController : ControllerBase
 {
-    [ApiController]
-    [Route("api/")]
-    public class RegistroSanitarioController : ControllerBase
-    {
-        private readonly ScrapingService _scrapingService;
+    private readonly ScrapingService _scrapingService;
+    private readonly ILoggerManager _logger;
 
-        public RegistroSanitarioController(ScrapingService scrapingService)
+    public RegistroSanitarioController(ScrapingService scrapingService, ILoggerManager logger)
+    {
+        _logger = logger;
+        _scrapingService = scrapingService;
+        _scrapingService.OnInitialized += (sender, args) =>
         {
-            _scrapingService = scrapingService;
-            _scrapingService.OnInitialized += (sender, args) =>
-            {
-                Console.WriteLine("El servicio de scraping se ha inicializado completamente.");
-            };
+            Console.WriteLine("El servicio de scraping se ha inicializado completamente.");
+        };
+    }
+
+    [HttpGet("buscar")]
+    [ProducesResponseType(typeof(ApiResponse<RegistroSanitarioResultado<ProductData>>), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest, "text/plain")]
+    [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound, "text/plain")]
+    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError, "application/json")]
+    public async Task<IActionResult> BuscarRegistroSanitario([FromQuery] string nombreProducto)
+    {
+        if (string.IsNullOrWhiteSpace(nombreProducto))
+        {
+            return BadRequest("El nombre del producto no puede estar vacío.");
         }
 
-        /// <summary>
-        /// Busca registros sanitarios por el nombre del producto.
-        /// </summary>
-        /// <param name="nombreProducto">Nombre completo o parcial del producto a buscar.</param>
-        /// <returns>Información sobre los registros sanitarios encontrados.</returns>
-        /// <response code="200">Registros encontrados.</response>
-        /// <response code="400">El nombre del producto está vacío.</response>
-        /// <response code="404">No se encontraron registros para el producto especificado.</response>
-        [HttpGet("buscar")]
-        [ProducesResponseType(typeof(ApiResponse<ProductData>), StatusCodes.Status200OK, "application/json")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest, "Text/plain")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status404NotFound, "Text/plain")]
-        public async Task<IActionResult> BuscarRegistroSanitario([FromQuery] string nombreProducto)
+        try
         {
-            if (string.IsNullOrEmpty(nombreProducto))
-            {
-                return BadRequest("El nombre del producto no puede estar vacío.");
-            }
-
             var resultado = await _scrapingService.BuscarRegistroSanitario(nombreProducto);
-
-            if (resultado == null || resultado.Data == null || resultado.Data.Count == 0)
+            if (resultado?.Data == null || resultado.Data.Count == 0)
             {
                 return NotFound("No se encontraron resultados para el producto especificado.");
             }
 
+            return Ok(new ApiResponse<RegistroSanitarioResultado<ProductData>>
+            {
+                Success = true,
+                Data = resultado,
+                Message = "Resultados obtenidos con éxito."
+            });
+        }
+        catch (DriverException ex)
+        {
+            _logger.LogError($"Error durante la búsqueda: {ex.ErrorCode}", ex);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+            {
+                Message = ex.Message,
+                Details = ex.InnerException?.Message ?? ex.Message,
+                ErrorCode = ex is AppException appEx ? appEx.ErrorCode.ToString() : "Unknown"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("Error inesperado: ", ex);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+            {
+                Message = "Ocurrió un error inesperado.",
+                Details = ex.Message,
+                ErrorCode = "500"
+            });
+        }
+    }
+
+
+
+    /// <summary>
+    /// Navega a través de los resultados de búsqueda utilizando paginación.
+    /// </summary>
+    /// <param name="comando">Dirección de navegación: "siguiente" o "anterior".</param>
+    /// <returns>Resultados de la página actual.</returns>
+    /// <response code="200">Página obtenida con éxito.</response>
+    /// <response code="204">No hay más páginas disponibles.</response>
+    /// <response code="500">Error interno del servidor.</response>
+    [HttpGet("paginacion")]
+    [ProducesResponseType(typeof(ApiResponse<ProductData>), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<IActionResult> Paginar([FromQuery] string comando)
+    {
+        BotonesPaginador boton = BotonesPaginador.siguiente;
+        if (comando.ToLower() == "anterior")
+        {
+            boton = BotonesPaginador.anterior;
+        }
+        var resultado = await _scrapingService.paginar(boton);
+
+
+        if (resultado.StatusCode == 204)
+        {
+
+            return NoContent();
+        }
+        else if (resultado.StatusCode == 200)
+        {
             return Ok(resultado);
         }
-
-        /// <summary>
-        /// Navega a través de los resultados de búsqueda utilizando paginación.
-        /// </summary>
-        /// <param name="comando">Dirección de navegación: "siguiente" o "anterior".</param>
-        /// <returns>Resultados de la página actual.</returns>
-        /// <response code="200">Página obtenida con éxito.</response>
-        /// <response code="204">No hay más páginas disponibles.</response>
-        /// <response code="500">Error interno del servidor.</response>
-        [HttpGet("paginacion")]
-        [ProducesResponseType(typeof(ApiResponse<ProductData>), StatusCodes.Status200OK, "application/json")]
-        [ProducesResponseType(StatusCodes.Status204NoContent)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public async Task<IActionResult> Paginar([FromQuery] string comando)
+        else
         {
-            BotonesPaginador boton = BotonesPaginador.siguiente;
-            if (comando.ToLower() == "anterior")
-            {
-                boton = BotonesPaginador.anterior;
-            }
-            var resultado = await _scrapingService.paginar(boton);
+            return StatusCode(resultado.StatusCode, resultado.Message);
+        }
+    }
 
-
-            if (resultado.StatusCode == 204)
+   [HttpGet("cambiarTipo")]
+[ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK, "application/json")]
+[ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status400BadRequest, "application/json")]
+[ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError, "application/json")]
+public IActionResult CambiarTipo([FromQuery] string tipoProducto)
+{
+    try
+    {
+        if (string.IsNullOrEmpty(tipoProducto))
+        {
+            return BadRequest(new ApiResponse<string>
             {
-
-                return NoContent();
-            }
-            else if (resultado.StatusCode == 200)
-            {
-                return Ok(resultado);
-            }
-            else
-            {
-                return StatusCode(resultado.StatusCode, resultado.Message);
-            }
+                Success = false,
+                Data = null,
+                Message = "Debe especificar el tipo de producto."
+            });
         }
 
-        /// <summary>
-        /// Cambia el tipo de producto en el contexto actual.
-        /// </summary>
-        /// <param name="tipoProducto"></param>
-        /// <returns>Confirmación del cambio o error si no fue exitoso.</returns>
-        /// <response code="200">El tipo de producto se cambió exitosamente.</response>
-        /// <response code="400">El nombre del tipo de producto no es válido. | Debe especificar el tipo de producto.</response>
-        /// <response code="500">Error interno del servidor.</response>
-        [HttpGet("cambiarTipo")]
-        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK, "application/json")]
-        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status500InternalServerError, "application/json")]
-        public IActionResult CambiarTipo([FromQuery] string tipoProducto)
+        if (!Enum.TryParse<TipoProducto>(tipoProducto, out var tipo))
         {
-            TipoProducto tipo;
-
-            if (!string.IsNullOrEmpty(tipoProducto))
+            return BadRequest(new ApiResponse<string>
             {
-                if (Enum.TryParse<TipoProducto>(tipoProducto, out var parsedTipoNombre))
-                {
-                    tipo = parsedTipoNombre;
-                }
-                else
-                {
-                    return BadRequest("El nombre del tipo de producto no es válido.");
-                }
-            }
-            else
-            {
-                return BadRequest("Debe especificar el tipo de producto.");
-            }
-
-            var resultado = _scrapingService.CambiarTipo(tipo);
-
-            if (resultado.StatusCode == 200)
-            {
-                return Ok(resultado);
-            }
-            else
-            {
-                return StatusCode(500, "Error interno al cambiar el tipo de producto.");
-            }
+                Success = false,
+                Data = null,
+                Message = "El nombre del tipo de producto no es válido."
+            });
         }
 
+        var resultado = _scrapingService.CambiarTipo(tipo);
 
-        /// <summary>
-        /// Obtiene la lista de tipos de productos disponibles.
-        /// </summary>
-        /// <returns>Lista de tipos de productos.</returns>
-        /// <response code="200">Lista obtenida con éxito.</response>
-        /// <response code="500">Error interno del servidor.</response>
-        [HttpGet("tiposProducto")]
-        [ProducesResponseType(StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
-        public IActionResult ObtenerTipos()
+        if (resultado.StatusCode == (int)HttpStatusCode.OK)
         {
-            var resultado = _scrapingService.ObtenerTipos();
-
-            if (resultado.StatusCode == 200)
+            return Ok(new ApiResponse<IEnumerable<string>>
             {
-                return Ok(resultado);
-            }
-            else
-            {
-                return StatusCode(resultado.StatusCode, resultado);
-
-            }
+                Success = true,
+                Data = resultado.Data,
+                Message = "Tipo de producto cambiado con éxito."
+            });
         }
 
-        /// <summary>
-        /// Verifica el estado del servicio de scraping.
-        /// </summary>
-        /// <returns>Estado del servicio.</returns>
-        /// <response code="200">El servicio está listo.</response>
-        /// <response code="503">El servicio se está inicializando.</response>
-        [HttpGet("estado")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status200OK, "Text/plain")]
-        [ProducesResponseType(typeof(string), StatusCodes.Status503ServiceUnavailable, "Text/plain")]
-        public IActionResult ObtenerEstado()
+        return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+        {
+            Message = "Error interno al cambiar el tipo de producto.",
+            Details = resultado.Message,
+            ErrorCode = "500"
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError("Error al cambiar el tipo de producto: ", ex);
+        return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+        {
+            Message = "Ocurrió un error al cambiar el tipo de producto.",
+            Details = ex.Message,
+            ErrorCode = "500"
+        });
+    }
+}
+
+
+[HttpGet("tiposProducto")]
+[ProducesResponseType(typeof(ApiResponse<IEnumerable<string>>), StatusCodes.Status200OK, "application/json")]
+[ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError, "application/json")]
+public IActionResult ObtenerTipos()
+{
+    try
+    {
+        var resultado = _scrapingService.ObtenerTipos();
+
+        if (resultado.StatusCode == (int)HttpStatusCode.OK)
+        {
+            return Ok(new ApiResponse<IEnumerable<string>>
+            {
+                Success = true,
+                Data = resultado.Data,
+                Message = "Tipos de productos obtenidos con éxito."
+            });
+        }
+
+        return StatusCode(resultado.StatusCode, new ErrorResponse
+        {
+            Message = resultado.Message ?? "Error desconocido al obtener tipos de productos.",
+            ErrorCode = resultado.StatusCode.ToString()
+        });
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError("Error al obtener tipos de productos: ", ex);
+        return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+        {
+            Message = "Ocurrió un error al obtener los tipos de productos.",
+            Details = ex.Message,
+            ErrorCode = "500"
+        });
+    }
+}
+
+
+    [HttpGet("estado")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK, "application/json")]
+    [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status503ServiceUnavailable, "application/json")]
+    public IActionResult ObtenerEstado()
+    {
+        try
         {
             if (_scrapingService.IsInitialized)
             {
-                return Ok("El servicio está listo.");
+                return Ok(new ApiResponse<string>
+                {
+                    Success = true,
+                    Data = "El servicio está listo.",
+                    Message = "Servicio en línea."
+                });
             }
-            else
+
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ApiResponse<string>
             {
-                return StatusCode((int)HttpStatusCode.ServiceUnavailable, "El servicio está inicializando.");
-            }
-
+                Success = false,
+                Data = "El servicio está inicializando.",
+                Message = "Servicio no disponible."
+            });
         }
-
+        catch (Exception ex)
+        {
+            _logger.LogError("Error al verificar el estado del servicio: ", ex);
+            return StatusCode(StatusCodes.Status500InternalServerError, new ErrorResponse
+            {
+                Message = "Ocurrió un error al verificar el estado del servicio.",
+                Details = ex.Message,
+                ErrorCode = "500"
+            });
+        }
     }
+
 }

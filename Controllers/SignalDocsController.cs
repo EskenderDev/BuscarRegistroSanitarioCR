@@ -1,8 +1,9 @@
+namespace BuscarRegistroSanitarioService.Controllers;
+
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace BuscarRegistroSanitarioService.Controllers
-{
+
     [Route("api/")]
     [ApiController]
     public class SignalDocsController : ControllerBase
@@ -52,4 +53,3 @@ namespace BuscarRegistroSanitarioService.Controllers
         });
     }
     }
-}

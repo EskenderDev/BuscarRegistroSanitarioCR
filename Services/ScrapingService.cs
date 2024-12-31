@@ -9,24 +9,30 @@ using System.Net;
 using System.Text.Json;
 using BuscarRegistroSanitarioService.Hubs;
 using Microsoft.AspNetCore.SignalR;
+using BuscarRegistroSanitarioService.Loggin;
+using BuscarRegistroSanitarioService.Exceptions;
+using OpenQA.Selenium.Remote;
+using BuscarRegistroSanitarioCR.DTO;
 
 namespace BuscarRegistroSanitarioService.services
 {
 
-    public class ScrapingService(IHubContext<NotificationHub> hubContext)
+    public class ScrapingService(IHubContext<NotificationHub> hubContext, ILoggerManager logger)
     {
         private readonly IHubContext<NotificationHub> _hubContext = hubContext;
+        private readonly ILoggerManager _logger = logger;
         private static IWebDriver? driver;
         private List<(string Origin, string ResponseUrl, string ResponseBody)> respuestas = new List<(string, string, string)>();
         private HttpRequestMessage? interceptedRequest = null;
         private HttpResponseMessage? interceptedResponse = null;
         private INetwork? networkInterceptor;
-        private WebDriverWait wait;
+        private WebDriverWait? wait;
         private readonly object lockObj = new object();
         public bool IsInitialized { get; private set; } = false;
 
         public event EventHandler? OnInitialized;
-        public async Task inicializar()
+
+        public void inicializar()
         {
             if (driver == null)
             {
@@ -34,29 +40,56 @@ namespace BuscarRegistroSanitarioService.services
                 {
                     if (driver == null)
                     {
+                        var service = ChromeDriverService.CreateDefaultService();
+                        service.LogPath = "chromedriver.log";
+                        service.EnableVerboseLogging = true;
+
                         var chromeOptions = new ChromeOptions();
                         chromeOptions.AddArgument("--headless");
-                        //chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
-                 
+                        chromeOptions.AddArgument("--no-sandbox");
+                        chromeOptions.AddArgument("--disable-dev-shm-usage");
+                        chromeOptions.AddArgument("--remote-debugging-port=9222");
+                        chromeOptions.AddArgument("--disable-gpu");
+                        chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
+                        try
+                        {
+                            try
+                            {
+                                // driver = new RemoteWebDriver(
+                                //     new Uri("http://172.18.0.3:4444/wd/hub"),
+                                //     chromeOptions.ToCapabilities(),
+                                //     TimeSpan.FromMinutes(5) // Timeout para la conexión
+                                // );
+                                driver = new ChromeDriver(chromeOptions);
+                                // var customCommandDriver = driver as ICustomDriverCommandExecutor;
+                                // customCommandDriver.RegisterCustomDriverCommands(ChromeDriver.CustomCommandDefinitions);
+                                driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
+                                _logger.LogInfo("Página cargada exitosamente.");
+                                networkInterceptor = driver?.Manage().Network;
+                                networkInterceptor?.AddRequestHandler(networkRequestHandler());
+                                networkInterceptor?.AddResponseHandler(networkResponseHandler());
 
-                        driver = new ChromeDriver(chromeOptions);
-                        driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
-
-                        networkInterceptor = driver?.Manage().Network;
-                        networkInterceptor?.AddRequestHandler(networkRequestHandler());
-                        networkInterceptor?.AddResponseHandler(networkResponseHandler());
-
-                        wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
-                        iniciarCampos();
-                        IsInitialized = true;
-                        OnInitialized?.Invoke(this, EventArgs.Empty);
+                                wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+                                iniciarCampos();
+                                IsInitialized = true;
+                                OnInitialized?.Invoke(this, EventArgs.Empty);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError($"Error: {ex.Message}", ex);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError($"Error: {ex.Message}", ex);
+                        }
                     }
 
                 }
             }
         }
 
-       private NetworkRequestHandler networkRequestHandler()
+        private NetworkRequestHandler networkRequestHandler()
         {
             return new NetworkRequestHandler
             {
@@ -123,14 +156,14 @@ namespace BuscarRegistroSanitarioService.services
             var listaEstado = EsperarQueElementoSeaClickable(By.Id("downshift-3-item-0"));
             listaEstado.Click();
             IsInitialized = true;
-           
+
             OnInitialized?.Invoke(this, EventArgs.Empty);
 
         }
 
-        public ApiResponse<string> CambiarTipo(TipoProducto tipoProducto)
+        public RegistroSanitarioResultado<string> CambiarTipo(TipoProducto tipoProducto)
         {
-            ApiResponse<string>? payload = new ApiResponse<string>();
+            RegistroSanitarioResultado<string>? payload = new RegistroSanitarioResultado<string>();
             try
             {
                 var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
@@ -150,12 +183,12 @@ namespace BuscarRegistroSanitarioService.services
             }
             return payload;
         }
-        public async Task<ApiResponse<ProductData>> BuscarRegistroSanitario(string nombreProducto)
+        public async Task<RegistroSanitarioResultado<ProductData>> BuscarRegistroSanitario(string nombreProducto)
         {
             interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
-            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
+            RegistroSanitarioResultado<ProductData>? payload = new RegistroSanitarioResultado<ProductData>();
 
             try
             {
@@ -188,7 +221,11 @@ namespace BuscarRegistroSanitarioService.services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: {ex.Message}");
+                _logger.LogError($"Error: {ex.Message}", ex);
+                if (ex.Message.Contains("Object reference not set to an instance of an object."))
+                {
+                    throw new DriverException("Problemas al iniciar el networkInterceptor", ex);
+                }
 
             }
 
@@ -199,27 +236,27 @@ namespace BuscarRegistroSanitarioService.services
             return wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
         }
 
-        private async Task<ApiResponse<ProductData>?> ManejadorInterceptorRespuesta()
+        private async Task<RegistroSanitarioResultado<ProductData>?> ManejadorInterceptorRespuesta()
         {
-            ApiResponse<ProductData> payload = new ApiResponse<ProductData>();
+            RegistroSanitarioResultado<ProductData> payload = new RegistroSanitarioResultado<ProductData>();
 
             var options = new JsonSerializerOptions
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
             var responseBody = await interceptedResponse.Content.ReadAsStringAsync();
-            payload = JsonSerializer.Deserialize<ApiResponse<ProductData>>(responseBody, options);
+            payload = JsonSerializer.Deserialize<RegistroSanitarioResultado<ProductData>>(responseBody, options);
 
             return payload;
         }
 
 
-        public async Task<ApiResponse<ProductData>> paginar(BotonesPaginador boton)
+        public async Task<RegistroSanitarioResultado<ProductData>> paginar(BotonesPaginador boton)
         {
             interceptedRequest = null;
             interceptedResponse = null;
             respuestas.Clear();
-            ApiResponse<ProductData>? payload = new ApiResponse<ProductData>();
+            RegistroSanitarioResultado<ProductData>? payload = new RegistroSanitarioResultado<ProductData>();
             string clase = "next";
             switch (boton)
             {
@@ -231,19 +268,25 @@ namespace BuscarRegistroSanitarioService.services
                     break;
             }
             var emptyState = false;
-            try {
+            try
+            {
                 emptyState = driver.FindElement(By.ClassName("empty-state")).Displayed;
 
-            } catch (NoSuchElementException) {
-               emptyState = false;
-            } catch (Exception) {
+            }
+            catch (NoSuchElementException)
+            {
                 emptyState = false;
             }
-             if(emptyState) {
-                    payload.StatusCode = 204;
-                    payload.Message = "Aun no hay datos que mostrar.";
-                    return payload;
-                };
+            catch (Exception)
+            {
+                emptyState = false;
+            }
+            if (emptyState)
+            {
+                payload.StatusCode = 204;
+                payload.Message = "Aun no hay datos que mostrar.";
+                return payload;
+            };
             try
             {
                 var botonPaginacion = EsperarQueElementoSeaClickable(By.ClassName(clase));
@@ -293,9 +336,9 @@ namespace BuscarRegistroSanitarioService.services
 
             return payload;
         }
-        internal ApiResponse<string> ObtenerTipos()
+        internal RegistroSanitarioResultado<string> ObtenerTipos()
         {
-            ApiResponse<string> payload = new ApiResponse<string>();
+            RegistroSanitarioResultado<string> payload = new RegistroSanitarioResultado<string>();
             try
             {
                 var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
@@ -314,7 +357,6 @@ namespace BuscarRegistroSanitarioService.services
             }
             return payload;
         }
-
         public async Task Dispose()
         {
             driver?.Quit();
