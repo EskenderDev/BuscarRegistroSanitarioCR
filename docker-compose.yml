@@ -8,12 +8,13 @@ services:
     expose:
       - 5000
     environment:
-      - VIRTUAL_HOST=buscar.local.me
-      - LETSENCRYPT_HOST=buscar.local.me
+      - VIRTUAL_HOST=buscar.local.me, www.bucar.local.me
+      - LETSENCRYPT_HOST=buscar.local.me, www.bucar.local.me
       - VIRTUAL_PORT=5000
       - DOTNET_RUNNING_IN_CONTAINER=true
       - ASPNETCORE_ENVIRONMENT=${ENVIRONMENT}
       - ASPNETCORE_URLS=http://+:5000
+      - SERVICE_TYPE=WebApi //Worker
     networks:
       - app_network
     healthcheck:
