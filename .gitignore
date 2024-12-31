@@ -110,3 +110,8 @@ artifacts/
 
 # Local history (optional)
 .history/
+
+certs
+certs-data
+Docs/comandos.md
+nginx.Configuration
