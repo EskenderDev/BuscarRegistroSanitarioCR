@@ -1,0 +1,28 @@
+
+
+# directories
+**/bin/
+**/obj/
+**/out/
+**/certs/
+
+# files
+.dockerignore
+.env
+.git
+.gitignore
+.vs
+.vscode
+docker-compose.yml
+docker-compose.*.yml
+Dockerfile*
+**/*.trx
+**/*.md
+**/*.ps1
+**/*.cmd
+**/*.sh
+
+
+Docs/comandos.md
+nginx.Configuration
+
