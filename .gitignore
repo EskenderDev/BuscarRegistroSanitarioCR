@@ -115,3 +115,4 @@ certs
 certs-data
 Docs/comandos.md
 nginx.Configuration
+fail2ban
