@@ -29,66 +29,99 @@ namespace BuscarRegistroSanitarioService.services
         private WebDriverWait? wait;
         private readonly object lockObj = new object();
         public bool IsInitialized { get; private set; } = false;
-
+        private ChromeDriverService? service;
         public event EventHandler? OnInitialized;
 
-        public void inicializar()
+        private static SemaphoreSlim semaphore = new SemaphoreSlim(1, 1); // Semáforo para control de acceso
+
+        public async Task InicializarAsync()
         {
-            if (driver == null)
+            await semaphore.WaitAsync(); // Adquirir el semáforo
+
+            try
             {
-                lock (lockObj)
+                if (!IsDriverAlive())
                 {
-                    if (driver == null)
-                    {
-                        var service = ChromeDriverService.CreateDefaultService();
-                        service.LogPath = "chromedriver.log";
-                        service.EnableVerboseLogging = true;
-
-                        var chromeOptions = new ChromeOptions();
-                        chromeOptions.AddArgument("--headless");
-                        chromeOptions.AddArgument("--no-sandbox");
-                        chromeOptions.AddArgument("--disable-dev-shm-usage");
-                        chromeOptions.AddArgument("--remote-debugging-port=9222");
-                        chromeOptions.AddArgument("--disable-gpu");
-                        chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
-                        try
-                        {
-                            try
-                            {
-                                // driver = new RemoteWebDriver(
-                                //     new Uri("http://172.18.0.3:4444/wd/hub"),
-                                //     chromeOptions.ToCapabilities(),
-                                //     TimeSpan.FromMinutes(5) // Timeout para la conexión
-                                // );
-                                driver = new ChromeDriver(chromeOptions);
-                                // var customCommandDriver = driver as ICustomDriverCommandExecutor;
-                                // customCommandDriver.RegisterCustomDriverCommands(ChromeDriver.CustomCommandDefinitions);
-                                driver.Navigate().GoToUrl("https://v2.registrelo.go.cr/reports/12");
-                                _logger.LogInfo("Página cargada exitosamente.");
-                                networkInterceptor = driver?.Manage().Network;
-                                networkInterceptor?.AddRequestHandler(networkRequestHandler());
-                                networkInterceptor?.AddResponseHandler(networkResponseHandler());
-
-                                wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
-                                iniciarCampos();
-                                IsInitialized = true;
-                                OnInitialized?.Invoke(this, EventArgs.Empty);
-                            }
-                            catch (Exception ex)
-                            {
-                                _logger.LogError($"Error: {ex.Message}", ex);
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError($"Error: {ex.Message}", ex);
-                        }
+                    try{
+                        InitializedDriver();
+                    } catch(Exception ex){
+                        _logger.LogError($"Error al iniciar ChromeDriver: {ex.Message}", ex);
                     }
-
                 }
+            }
+            finally
+            {
+                semaphore.Release();
+                await EnsureDriverIsRunningAsync();
             }
         }
 
+        private void InitializedDriver()
+        {
+            service = ChromeDriverService.CreateDefaultService();
+            service.LogPath = "chromedriver.log";
+            service.EnableVerboseLogging = true;
+
+            var chromeOptions = new ChromeOptions();
+            chromeOptions.AddArgument("--headless");
+            chromeOptions.AddArgument("--no-sandbox");
+            chromeOptions.AddArgument("--disable-dev-shm-usage");
+            //chromeOptions.AddArgument("--remote-debugging-port=9230");
+            chromeOptions.AddArgument("--disable-gpu");
+            chromeOptions.AddArgument("--blink-settings=imagesEnabled=false");
+
+            try
+            {
+                driver = new ChromeDriver(service, chromeOptions);
+                _logger.LogInfo("ChromeDriver iniciado exitosamente.");
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error al iniciar ChromeDriver: {ex.Message}", ex);
+            }
+        }
+        private bool IsDriverAlive()
+        {
+            return service?.ProcessId > 0 && service.IsRunning && driver != null && driver.WindowHandles.Count > 0 && driver.Url.Contains("https://v2.registrelo.go.cr/reports/12");
+        }
+
+        private async Task EnsureDriverIsRunningAsync()
+        {
+            if (!IsDriverAlive())
+            {
+                await Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        if (driver != null && !IsDriverAlive())
+                        {
+                            _logger.LogWarning("ChromeDriver ha dejado de funcionar. Reiniciando...");
+                            InitializedDriver();
+
+                            // Esperamos a que el driver esté listo de nuevo antes de continuar
+                            await driver.Navigate().GoToUrlAsync("https://v2.registrelo.go.cr/reports/12");
+                            _logger.LogInfo("Página cargada exitosamente.");
+
+                            networkInterceptor = driver?.Manage().Network;
+                            //networkInterceptor?.AddRequestHandler(networkRequestHandler());
+                            networkInterceptor?.AddResponseHandler(networkResponseHandler());
+
+                            wait = new WebDriverWait(driver, TimeSpan.FromSeconds(10));
+
+                            await iniciarCampos();
+
+                            IsInitialized = true;
+                            OnInitialized?.Invoke(this, EventArgs.Empty);
+                            _logger.LogInfo("ChromeDriver reiniciado exitosamente.");
+
+                        }
+                        Thread.Sleep(20000);
+                    }
+                }
+                );
+            }
+        }
         private NetworkRequestHandler networkRequestHandler()
         {
             return new NetworkRequestHandler
@@ -129,46 +162,53 @@ namespace BuscarRegistroSanitarioService.services
 
             };
         }
-        private void iniciarCampos()
+        private async Task iniciarCampos()
         {
-            wait.Until(driver => ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").ToString() == "complete");
-            var advanceSearch = EsperarQueElementoSeaClickable(By.ClassName("advance-search"));
-            wait.Until(d => advanceSearch.Displayed);
-            advanceSearch.Click();
-
-            if (driver?.FindElements(By.ClassName("times-icon")).Count > 0)
+            if (wait != null)
             {
-                var fechas = wait.Until(d => d.FindElements(By.ClassName("times-icon")));
-                wait.Until(d => fechas.First().Displayed);
-                fechas?.First().Click();
-                fechas?.Last().Click();
+                await wait.UntilAsync(driver => ((IJavaScriptExecutor)driver).ExecuteScript("return document.readyState").ToString() == "complete");
+                var advanceSearch = await EsperarQueElementoSeaClickableAsync(By.ClassName("advance-search"));
+                await wait.UntilAsync(d => advanceSearch.Displayed);
+                advanceSearch.Click();
 
+                if (driver?.FindElements(By.ClassName("times-icon")).Count > 0)
+                {
+                    var fechas = await wait.UntilAsync(d => d.FindElements(By.ClassName("times-icon")));
+                    if (fechas != null)
+                    {
+                        await wait.UntilAsync(d => fechas.First().Displayed);
+                    }
+                    fechas?.First().Click();
+                    fechas?.Last().Click();
+
+                }
+
+                var tipo = await wait.UntilAsync(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+                var estado = await wait.UntilAsync(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(12) > div:nth-child(2) > div > div:nth-child(1) > input")));
+
+
+                tipo?.Click();
+                var listaTipo = await wait.UntilAsync(d => d.FindElement(By.Id("downshift-1-item-6")));
+                listaTipo?.Click();
+                estado?.Click();
+                var listaEstado = await EsperarQueElementoSeaClickableAsync(By.Id("downshift-3-item-0"));
+                listaEstado.Click();
+                IsInitialized = true;
+
+                OnInitialized?.Invoke(this, EventArgs.Empty);
             }
-
-            var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
-            var estado = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(12) > div:nth-child(2) > div > div:nth-child(1) > input")));
-
-
-            tipo?.Click();
-            var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-item-6")));
-            listaTipo?.Click();
-            estado?.Click();
-            var listaEstado = EsperarQueElementoSeaClickable(By.Id("downshift-3-item-0"));
-            listaEstado.Click();
-            IsInitialized = true;
-
-            OnInitialized?.Invoke(this, EventArgs.Empty);
 
         }
 
-        public RegistroSanitarioResultado<string> CambiarTipo(TipoProducto tipoProducto)
+        public RegistroSanitarioResultado<string>? CambiarTipo(TipoProducto tipoProducto)
         {
             RegistroSanitarioResultado<string>? payload = new RegistroSanitarioResultado<string>();
+            payload.Data = new List<string>();
             try
             {
-                var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+                var tipo = wait?.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
                 tipo?.Click();
-                var listaTipo = wait.Until(d => d.FindElement(By.Id($"downshift-1-item-{((int)tipoProducto)}")));
+                var listaTipo = wait?.Until(d => d.FindElement(By.Id($"downshift-1-item-{((int)tipoProducto)}")));
                 listaTipo?.Click();
                 payload.Status = HttpStatusCode.OK.ToString();
                 payload.StatusCode = (int)HttpStatusCode.OK;
@@ -190,53 +230,60 @@ namespace BuscarRegistroSanitarioService.services
             respuestas.Clear();
             RegistroSanitarioResultado<ProductData>? payload = new RegistroSanitarioResultado<ProductData>();
 
+            payload.Data = new List<ProductData>();
+
             try
             {
 
-                await networkInterceptor.StartMonitoring();
-
-                var nombre = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(3) > div:nth-child(2) > div > input")));
-                nombre?.Clear();
-                nombre?.SendKeys(nombreProducto);
-
-                var reportButton = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm button[type='submit']")));
-
-                reportButton?.Click();
-
-                var maxWaitTime = TimeSpan.FromSeconds(60);
-                var stopwatch = Stopwatch.StartNew();
-                while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
+                if (networkInterceptor != null)
                 {
-                    await Task.Delay(500);
+                    await networkInterceptor.StartMonitoring();
+
+                    var nombre = await wait.UntilAsync(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(3) > div:nth-child(2) > div > input")));
+                    nombre?.Clear();
+                    nombre?.SendKeys(nombreProducto);
+
+                    var reportButton = wait?.Until(d => d.FindElement(By.CssSelector("#reportFilterForm button[type='submit']")));
+
+                    reportButton?.Click();
+
+                    var maxWaitTime = TimeSpan.FromSeconds(60);
+                    var stopwatch = Stopwatch.StartNew();
+                    while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
+                    {
+                        await Task.Delay(500);
+                    }
+                    stopwatch.Stop();
+                    if (interceptedResponse != null)
+                    {
+                        payload = await ManejadorInterceptorRespuestaAsync();
+                    }
+
+                    await networkInterceptor.StopMonitoring();
                 }
-                stopwatch.Stop();
-                if (interceptedResponse != null)
-                {
-                    payload = await ManejadorInterceptorRespuesta();
-                }
-
-                await networkInterceptor.StopMonitoring();
-
-
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error: {ex.Message}", ex);
+
                 if (ex.Message.Contains("Object reference not set to an instance of an object."))
                 {
                     throw new DriverException("Problemas al iniciar el networkInterceptor", ex);
                 }
 
             }
-
             return payload;
         }
-        private IWebElement EsperarQueElementoSeaClickable(By by)
+        private async Task<IWebElement> EsperarQueElementoSeaClickableAsync(By by)
         {
-            return wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by));
+            if (wait == null)
+            {
+                throw new InvalidOperationException("WebDriverWait instance is not initialized.");
+            }
+            return await Task.Run(() => wait.Until(SeleniumExtras.WaitHelpers.ExpectedConditions.ElementToBeClickable(by)));
         }
 
-        private async Task<RegistroSanitarioResultado<ProductData>?> ManejadorInterceptorRespuesta()
+        private async Task<RegistroSanitarioResultado<ProductData>> ManejadorInterceptorRespuestaAsync()
         {
             RegistroSanitarioResultado<ProductData> payload = new RegistroSanitarioResultado<ProductData>();
 
@@ -244,8 +291,8 @@ namespace BuscarRegistroSanitarioService.services
             {
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
-            var responseBody = await interceptedResponse.Content.ReadAsStringAsync();
-            payload = JsonSerializer.Deserialize<RegistroSanitarioResultado<ProductData>>(responseBody, options);
+            var responseBody = interceptedResponse != null ? await interceptedResponse.Content.ReadAsStringAsync() : string.Empty;
+            payload = JsonSerializer.Deserialize<RegistroSanitarioResultado<ProductData>>(responseBody, options) ?? new RegistroSanitarioResultado<ProductData>();
 
             return payload;
         }
@@ -270,7 +317,7 @@ namespace BuscarRegistroSanitarioService.services
             var emptyState = false;
             try
             {
-                emptyState = driver.FindElement(By.ClassName("empty-state")).Displayed;
+                emptyState = driver?.FindElement(By.ClassName("empty-state"))?.Displayed ?? false;
 
             }
             catch (NoSuchElementException)
@@ -289,7 +336,7 @@ namespace BuscarRegistroSanitarioService.services
             };
             try
             {
-                var botonPaginacion = EsperarQueElementoSeaClickable(By.ClassName(clase));
+                var botonPaginacion = await EsperarQueElementoSeaClickableAsync(By.ClassName(clase));
                 var botonEstaDeshabilitado = botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;");
 
                 if (botonEstaDeshabilitado && payload.Data.Count == 0)
@@ -304,25 +351,28 @@ namespace BuscarRegistroSanitarioService.services
                     return payload;
                 }
                 botonPaginacion.Click();
-                await networkInterceptor.StartMonitoring();
-
-                var maxWaitTime = TimeSpan.FromSeconds(60);
-                var stopwatch = Stopwatch.StartNew();
-                while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
+                if (networkInterceptor != null)
                 {
-                    await Task.Delay(500);
-                }
-                stopwatch.Stop();
+                    await networkInterceptor.StartMonitoring();
 
-                if (interceptedResponse != null)
-                {
-                    payload = await ManejadorInterceptorRespuesta();
-                    if (botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;"))
+                    var maxWaitTime = TimeSpan.FromSeconds(60);
+                    var stopwatch = Stopwatch.StartNew();
+                    while (interceptedResponse == null && stopwatch.Elapsed < maxWaitTime)
                     {
-                        payload.Message = "Última página alcanzada.";
+                        await Task.Delay(500);
                     }
+                    stopwatch.Stop();
+
+                    if (interceptedResponse != null)
+                    {
+                        payload = await ManejadorInterceptorRespuestaAsync();
+                        if (botonPaginacion.GetAttribute("style").Contains("cursor: not-allowed;"))
+                        {
+                            payload.Message = "Última página alcanzada.";
+                        }
+                    }
+                    await networkInterceptor.StopMonitoring();
                 }
-                await networkInterceptor.StopMonitoring();
 
 
             }
@@ -341,11 +391,11 @@ namespace BuscarRegistroSanitarioService.services
             RegistroSanitarioResultado<string> payload = new RegistroSanitarioResultado<string>();
             try
             {
-                var tipo = wait.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
+                var tipo = wait?.Until(d => d.FindElement(By.CssSelector("#reportFilterForm > div > div:nth-child(2) > div:nth-child(2) > div > div:nth-child(1) > input")));
                 tipo?.Click();
-                var listaTipo = wait.Until(d => d.FindElement(By.Id("downshift-1-menu")));
+                var listaTipo = wait?.Until(d => d.FindElement(By.Id("downshift-1-menu")));
                 var tipos = listaTipo?.FindElements(By.CssSelector("li"));
-                payload.Data = tipos.Select(t => t.Text).ToList();
+                payload.Data = tipos?.Select(t => t.Text).ToList() ?? new List<string>();
                 tipo?.Click();
                 payload.StatusCode = 200;
                 payload.Message = "Tipos obtenidos correctamente.";
@@ -367,5 +417,11 @@ namespace BuscarRegistroSanitarioService.services
     }
 }
 
-
+public static class WebDriverWaitExtensions
+{
+    public static async Task<T> UntilAsync<T>(this WebDriverWait wait, Func<IWebDriver, T> condition)
+    {
+        return await Task.Run(() => wait.Until(condition));
+    }
+}
 
