@@ -1,3 +1,4 @@
+using BuscarRegistroSanitarioService;
 using BuscarRegistroSanitarioService.Hubs;
 using BuscarRegistroSanitarioService.Loggin;
 using BuscarRegistroSanitarioService.services;
@@ -10,6 +11,8 @@ public class Startup
 {
     public void ConfigureServices(IServiceCollection services)
     {
+        var serviceType = Environment.GetEnvironmentVariable("SERVICE_TYPE");
+
         services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
@@ -28,7 +31,11 @@ public class Startup
         services.AddSingleton<ILoggerManager, LogManager>();
 
         services.AddAuthorization();
-        //services.AddHostedService<Worker>();
+
+        if(serviceType == "Worker") {
+            services.AddHostedService<Worker>();
+        }
+
         services.AddControllers();
         services.AddSignalR();
         services.AddSingleton<ScrapingService>();
